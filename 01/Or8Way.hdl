@@ -1,0 +1,36 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/01/Or8Way.hdl
+
+/**
+ * 8-way Or: 
+ * out = (in[0] or in[1] or ... or in[7])
+ */
+
+CHIP Or8Way {
+    IN in[8];
+    OUT out;
+
+    PARTS:
+        /**
+        This will work with same number of chips
+        However, it is invalid in HDL to start pin names
+        with underscores or numerals
+
+        Or(a=in[0], b=in[1], out=_01out);
+        Or(a=in[2], b=in[3], out=_23out);
+        Or(a=in[4], b=in[5], out=_45out);
+        Or(a=in[6], b=in[7], out=_67out);
+        Or(a=_01out, b=_23out, out=_0123out);
+        Or(a=_45out, b-_67out, out=_4567out);
+        Or(a=_0123out, b=_4567out, out=out);
+        */
+        Or(a=in[0], b=in[1], out=aout);
+        Or(a=aout, b=in[2], out=bout);
+        Or(a=bout, b=in[3], out=cout);
+        Or(a=cout, b=in[4], out=dout);
+        Or(a=dout, b=in[5], out=eout);
+        Or(a=eout, b=in[6], out=fout);
+        Or(a=fout, b=in[7], out=out);
+}
