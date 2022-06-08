@@ -1,0 +1,138 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/05/CPU.hdl
+
+/**
+ * The Hack CPU (Central Processing unit), consisting of an ALU,
+ * two registers named A and D, and a program counter named PC.
+ * The CPU is designed to fetch and execute instructions written in 
+ * the Hack machine language. In particular, functions as follows:
+ * Executes the inputted instruction according to the Hack machine 
+ * language specification. The D and A in the language specification
+ * refer to CPU-resident registers, while M refers to the external
+ * memory location addressed by A, i.e. to Memory[A]. The inM input 
+ * holds the value of this location. If the current instruction needs 
+ * to write a value to M, the value is placed in outM, the address 
+ * of the target location is placed in the addressM output, and the 
+ * writeM control bit is asserted. (When writeM==0, any value may 
+ * appear in outM). The outM and writeM outputs are combinational: 
+ * they are affected instantaneously by the execution of the current 
+ * instruction. The addressM and pc outputs are clocked: although they 
+ * are affected by the execution of the current instruction, they commit 
+ * to their new values only in the next time step. If reset==1 then the 
+ * CPU jumps to address 0 (i.e. pc is set to 0 in next time step) rather 
+ * than to the address resulting from executing the current instruction. 
+ */
+
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+
+        /*
+        * note that the input to the increment pin is always true
+         */
+        PC(in=outA, load=jumpForAnyReason, inc=true, reset=reset, out[0..14]=pc);
+
+        /*
+         * if the leftmost bit is one, then it is a C instruction
+         * the following And statement is redundant because And(instruction[15], true) is always instruction[15]
+         * all it does is rename instruction[15] to cInstruction, which makes the program easier to understand
+         * but does not change the functionality
+         */
+        And(a=instruction[15], b=true, out=cInstruction);
+
+        /* in case of a c instruction, the instruction is treated as 
+         * a capsule of control bits, and instruction[12]
+         * represents the a bit, which codes the "comp" part of
+         * the instruction, which is stored in dest if dest is given
+         */
+        And(a=instruction[12], b=cInstruction, out=mInstruction);
+        /*
+         * if it is not an a instruction, it is a c instruction
+         */
+        Not(in=cInstruction, out=aInstruction);
+
+        /*
+         * process the d-bits of the instruction
+         */
+        And(a=instruction[5], b=cInstruction, out=destA);
+        And(a=instruction[4], b=cInstruction, out=destD);
+        And(a=instruction[3], b=cInstruction, out=writeM);
+
+        /*
+         * process the jump bits of the instruction
+         */
+        And(a=instruction[2], b=cInstruction, out=jumpIfLT);
+        And(a=instruction[1], b=cInstruction, out=jumpIfEQ);
+        And(a=instruction[0], b=cInstruction, out=jumpIfGT);
+
+        /*
+         * store the current value of the D and the A registers in pins so they can be fed
+         * to the ALU
+         */
+        DRegister(in=false, load=false, out=dValue);
+        ARegister(in=false, load=false, out=aValue);
+
+        /*
+         * perform the comp specified by the c-bits (bits 6-11) of the instruction
+         * note that there are multiple output pins, because outM is the output pin of the entire
+         * chip and therefore it cannot be used to inputt things to internal pins. Hence, we use
+         * aluOut for this purpose
+         */
+        ALU(x=dValue, y=aValue, zx=instruction[11], nx=instruction[10],
+            zy=instruction[9], ny=instruction[8], f=instruction[7],
+            no=instruction[6], zr=aluZR, ng=aluNG,out=aluOut, out=outM, out[15]=lt,
+            out[0..7]=outMFirstHalf, out[8..15]=outMSecondHalf);
+
+        /*
+         * now we will define pins gt, lt, and eq, which are used to determine if a jmp condition is met
+         */
+        Not(in=lt, out=gt);
+
+        Or8Way(in=outMFirstHalf, out=neqFirstHalf);
+        Or8Way(in=outMSecondHalf, out=neqSecondHalf);
+        Or(a=neqFirstHalf, b=neqSecondHalf, out=neq);
+        Not(in=neq, out=eq);
+
+        And(a=jumpIfLT, b=lt, out=jumpLT);
+        And(a=jumpIfEQ, b=eq, out=jumpEQ);
+        And(a=jumpIfGT, b=gt, out=jumpGT);
+
+        Or(a=jumpLT, b=jumpEQ, out=jumpLTOrJumpEQ);
+        Or(a=jumpLTOrJumpEQ, b=jumpGT, out=jumpForAnyReason);
+
+        /* 
+        * ALU output gets sent back to d register if instruction[4] is true or it is a c instruction
+         */
+         // currently, the instruction D=A is not working. It seems that D is set to aluOut, and
+         // aluOut is not reflecting the value of the ARegister (it is reflected in outA[16])
+
+        DRegister(in=aluOut, load=destD, out=dPin);
+
+        /*
+         * determine whether to load value into the A register
+         * store output of A Register in outA, and store the
+         * address bits of the output in address M
+         */
+        Or(a=aInstruction, b=destA, out=loadA);
+        Mux16(a=instruction, b=aluOut, sel=destA, out=inA);
+        ARegister(in=inA, load=loadA, out=outA, out[0..14]=addressM);
+
+        /*
+         * the source pin of jump should be whether or not outM meets the jmp conditions
+         * which s
+         */ 
+        
+}
